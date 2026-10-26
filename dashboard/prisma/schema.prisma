@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  MISSED
+  CANCELED
+}
+
+enum PostMode {
+  MANUAL
+  SCHEDULED
+  AUTO
+}
+
+enum PostSource {
+  AI
+  MANUAL
+}
+
+enum WorkerJobStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+model ProfileVersion {
+  id        Int          @id @default(autoincrement())
+  version   Int          @unique
+  niche     String       @default("") @db.VarChar(191)
+  topics    String       @db.Text
+  audience  String       @db.Text
+  tone      String       @db.Text
+  language  String       @default("Bahasa Indonesia") @db.VarChar(100)
+  rules     String       @db.Text
+  createdAt DateTime     @default(now())
+  examples  ExamplePost[]
+  posts     Post[]
+
+  @@map("profile_versions")
+}
+
+model ExamplePost {
+  id               Int            @id @default(autoincrement())
+  profileVersionId Int
+  text             String         @db.VarChar(500)
+  isTop            Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  profileVersion   ProfileVersion @relation(fields: [profileVersionId], references: [id], onDelete: Cascade)
+
+  @@index([profileVersionId])
+  @@map("example_posts")
+}
+
+model Post {
+  id               String          @id @default(cuid()) @db.VarChar(30)
+  status           PostStatus      @default(DRAFT)
+  mode             PostMode        @default(MANUAL)
+  source           PostSource      @default(MANUAL)
+  topic            String          @default("") @db.VarChar(191)
+  text             String          @db.VarChar(500)
+  generationPrompt String?         @db.Text
+  profileVersionId Int?
+  threadsContainerId String?        @db.VarChar(191)
+  scheduledAt      DateTime?
+  nextRetryAt      DateTime?
+  publishedAt      DateTime?
+  isTopPerformance Boolean         @default(false)
+  threadsMediaId   String?         @db.VarChar(191)
+  idempotencyKey   String?         @unique @db.VarChar(191)
+  retryCount       Int             @default(0)
+  errorMessage     String?         @db.Text
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  profileVersion   ProfileVersion? @relation(fields: [profileVersionId], references: [id], onDelete: SetNull)
+  metrics          MetricSnapshot[]
+
+  @@index([status, createdAt])
+  @@map("posts")
+}
+
+model MetricSnapshot {
+  id           Int      @id @default(autoincrement())
+  postId       String   @db.VarChar(30)
+  snapshotDate DateTime @db.Date
+  capturedAt   DateTime @default(now())
+  views        Int?
+  likes        Int?
+  replies      Int?
+  reposts      Int?
+  quotes       Int?
+  post         Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, snapshotDate])
+  @@index([snapshotDate])
+  @@map("metric_snapshots")
+}
+
+model JobLog {
+  id        Int            @id @default(autoincrement())
+  job       String         @db.VarChar(100)
+  status    WorkerJobStatus @default(RUNNING)
+  startedAt DateTime       @default(now())
+  finishedAt DateTime?
+  detail    String?        @db.Text
+
+  @@index([job, startedAt])
+  @@map("job_logs")
+}
+
+model ThreadsAccount {
+  id                   Int      @id @default(autoincrement())
+  threadsUserId        String   @unique @db.VarChar(191)
+  username             String   @db.VarChar(191)
+  encryptedAccessToken String   @db.Text
+  tokenExpiresAt       DateTime?
+  connectedAt          DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("threads_accounts")
+}
