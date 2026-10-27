@@ -3,15 +3,30 @@ import { isAuthenticated } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const metricFields = ["views", "likes", "replies", "reposts", "quotes"] as const;
-type MetricField = typeof metricFields[number];
+type MetricField = (typeof metricFields)[number];
 
-function sumMetric<T extends { metrics: { views: number | null; likes: number | null; replies: number | null; reposts: number | null; quotes: number | null }[] }>(posts: T[], field: MetricField) {
-  const values = posts.flatMap((post) => post.metrics.length && post.metrics[0][field] !== null ? [post.metrics[0][field] as number] : []);
+function sumMetric<
+  T extends {
+    metrics: {
+      views: number | null;
+      likes: number | null;
+      replies: number | null;
+      reposts: number | null;
+      quotes: number | null;
+    }[];
+  },
+>(posts: T[], field: MetricField) {
+  const values = posts.flatMap((post) =>
+    post.metrics.length && post.metrics[0][field] !== null
+      ? [post.metrics[0][field] as number]
+      : [],
+  );
   return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
 }
 
 export async function GET() {
-  if (!(await isAuthenticated())) return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
+  if (!(await isAuthenticated()))
+    return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
   try {
     const now = new Date();
     const since30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -28,7 +43,14 @@ export async function GET() {
         metrics: {
           orderBy: { capturedAt: "desc" },
           take: 1,
-          select: { capturedAt: true, views: true, likes: true, replies: true, reposts: true, quotes: true },
+          select: {
+            capturedAt: true,
+            views: true,
+            likes: true,
+            replies: true,
+            reposts: true,
+            quotes: true,
+          },
         },
       },
     });
@@ -41,7 +63,9 @@ export async function GET() {
         days,
         publishedPostCount: cohort.length,
         measuredPostCount: measured.length,
-        hasData: measured.some((post) => metricFields.some((field) => post.metrics[0][field] !== null)),
+        hasData: measured.some((post) =>
+          metricFields.some((field) => post.metrics[0][field] !== null),
+        ),
         metrics: Object.fromEntries(metricFields.map((field) => [field, sumMetric(cohort, field)])),
       };
     }
@@ -58,9 +82,16 @@ export async function GET() {
         publishedAt: post.publishedAt,
         metrics: post.metrics[0],
       }));
-    const capturedAt = posts.flatMap((post) => post.metrics.map((metric) => metric.capturedAt)).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+    const capturedAt =
+      posts
+        .flatMap((post) => post.metrics.map((metric) => metric.capturedAt))
+        .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
 
-    return NextResponse.json({ periods: { sevenDays: summarize(7), thirtyDays: summarize(30) }, topPosts, capturedAt });
+    return NextResponse.json({
+      periods: { sevenDays: summarize(7), thirtyDays: summarize(30) },
+      topPosts,
+      capturedAt,
+    });
   } catch {
     console.error("Metrics summary query failed.");
     return NextResponse.json({ error: "Ringkasan metrik belum bisa dimuat." }, { status: 503 });

@@ -12,8 +12,10 @@ function isAuthorized(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!process.env.SCHEDULER_SECRET) return NextResponse.json({ error: "SCHEDULER_SECRET belum dikonfigurasi." }, { status: 503 });
-  if (!isAuthorized(request)) return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
+  if (!process.env.SCHEDULER_SECRET)
+    return NextResponse.json({ error: "SCHEDULER_SECRET belum dikonfigurasi." }, { status: 503 });
+  if (!isAuthorized(request))
+    return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
   try {
     const summary = await runSchedulerJob();
     return NextResponse.json({ ok: true, ...summary });

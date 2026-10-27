@@ -10,26 +10,41 @@ const profileSchema = z.object({
   tone: z.string().trim().min(1).max(2000),
   language: z.string().trim().min(1).max(100),
   rules: z.string().trim().max(4000),
-  examples: z.array(z.object({ text: z.string().trim().min(1).max(500), isTop: z.boolean() })).min(5).max(20),
+  examples: z
+    .array(z.object({ text: z.string().trim().min(1).max(500), isTop: z.boolean() }))
+    .min(5)
+    .max(20),
 });
 
 export async function GET() {
-  if (!(await isAuthenticated())) return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
+  if (!(await isAuthenticated()))
+    return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
 
   try {
     const [profile, versions] = await Promise.all([
-      prisma.profileVersion.findFirst({ orderBy: { version: "desc" }, include: { examples: { orderBy: { id: "asc" } } } }),
-      prisma.profileVersion.findMany({ orderBy: { version: "desc" }, select: { version: true, createdAt: true }, take: 20 }),
+      prisma.profileVersion.findFirst({
+        orderBy: { version: "desc" },
+        include: { examples: { orderBy: { id: "asc" } } },
+      }),
+      prisma.profileVersion.findMany({
+        orderBy: { version: "desc" },
+        select: { version: true, createdAt: true },
+        take: 20,
+      }),
     ]);
     return NextResponse.json({ profile, versions });
   } catch {
     console.error("Could not load content profile.");
-    return NextResponse.json({ error: "Content profile belum bisa dimuat. Periksa koneksi database." }, { status: 503 });
+    return NextResponse.json(
+      { error: "Content profile belum bisa dimuat. Periksa koneksi database." },
+      { status: 503 },
+    );
   }
 }
 
 export async function PUT(request: NextRequest) {
-  if (!(await isAuthenticated())) return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
+  if (!(await isAuthenticated()))
+    return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
 
   let body: unknown;
   try {
@@ -38,10 +53,20 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Data profile tidak valid." }, { status: 400 });
   }
   const parsed = profileSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: "Isi seluruh kolom wajib dan masukkan 5–20 contoh tulisan (maksimal 500 karakter tiap contoh)." }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json(
+      {
+        error:
+          "Isi seluruh kolom wajib dan masukkan 5–20 contoh tulisan (maksimal 500 karakter tiap contoh).",
+      },
+      { status: 400 },
+    );
 
   try {
-    const latest = await prisma.profileVersion.findFirst({ orderBy: { version: "desc" }, select: { version: true } });
+    const latest = await prisma.profileVersion.findFirst({
+      orderBy: { version: "desc" },
+      select: { version: true },
+    });
     const profile = await prisma.profileVersion.create({
       data: {
         version: (latest?.version ?? 0) + 1,
@@ -51,7 +76,12 @@ export async function PUT(request: NextRequest) {
         tone: parsed.data.tone,
         language: parsed.data.language,
         rules: parsed.data.rules,
-        examples: { create: parsed.data.examples.map((example) => ({ text: example.text, isTop: example.isTop })) },
+        examples: {
+          create: parsed.data.examples.map((example) => ({
+            text: example.text,
+            isTop: example.isTop,
+          })),
+        },
       },
       include: { examples: { orderBy: { id: "asc" } } },
     });

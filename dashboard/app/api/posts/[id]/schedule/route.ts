@@ -14,47 +14,117 @@ function readScheduledAt(value: string) {
 }
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
-  if (!(await isAuthenticated())) return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
+  if (!(await isAuthenticated()))
+    return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
   let body: unknown;
-  try { body = await request.json(); } catch { return NextResponse.json({ error: "Waktu jadwal tidak valid." }, { status: 400 }); }
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Waktu jadwal tidak valid." }, { status: 400 });
+  }
   const parsed = scheduleSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: "Pilih tanggal dan waktu jadwal." }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json({ error: "Pilih tanggal dan waktu jadwal." }, { status: 400 });
   const scheduledAt = readScheduledAt(parsed.data.scheduledAt);
-  if (!scheduledAt) return NextResponse.json({ error: "Jadwal harus setidaknya satu menit dari sekarang (WIB)." }, { status: 400 });
+  if (!scheduledAt)
+    return NextResponse.json(
+      { error: "Jadwal harus setidaknya satu menit dari sekarang (WIB)." },
+      { status: 400 },
+    );
 
   const { id } = await context.params;
   const account = await prisma.threadsAccount.findFirst({ select: { id: true } });
-  if (!account) return NextResponse.json({ error: "Hubungkan akun Threads sebelum menjadwalkan post." }, { status: 409 });
+  if (!account)
+    return NextResponse.json(
+      { error: "Hubungkan akun Threads sebelum menjadwalkan post." },
+      { status: 409 },
+    );
 
   const result = await prisma.post.updateMany({
     where: { id, status: "DRAFT" },
-    data: { status: "SCHEDULED", mode: "SCHEDULED", scheduledAt, retryCount: 0, errorMessage: null },
+    data: {
+      status: "SCHEDULED",
+      mode: "SCHEDULED",
+      scheduledAt,
+      retryCount: 0,
+      errorMessage: null,
+    },
   });
-  if (result.count !== 1) return NextResponse.json({ error: "Draft tidak ditemukan atau sudah diproses." }, { status: 409 });
-  const post = await prisma.post.findUnique({ where: { id }, select: { id: true, status: true, scheduledAt: true, text: true, topic: true, updatedAt: true } });
+  if (result.count !== 1)
+    return NextResponse.json(
+      { error: "Draft tidak ditemukan atau sudah diproses." },
+      { status: 409 },
+    );
+  const post = await prisma.post.findUnique({
+    where: { id },
+    select: { id: true, status: true, scheduledAt: true, text: true, topic: true, updatedAt: true },
+  });
   return NextResponse.json({ post }, { status: 201 });
 }
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
-  if (!(await isAuthenticated())) return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
+  if (!(await isAuthenticated()))
+    return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
   let body: unknown;
-  try { body = await request.json(); } catch { return NextResponse.json({ error: "Waktu jadwal tidak valid." }, { status: 400 }); }
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Waktu jadwal tidak valid." }, { status: 400 });
+  }
   const parsed = scheduleSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: "Pilih tanggal dan waktu jadwal." }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json({ error: "Pilih tanggal dan waktu jadwal." }, { status: 400 });
   const scheduledAt = readScheduledAt(parsed.data.scheduledAt);
-  if (!scheduledAt) return NextResponse.json({ error: "Jadwal harus setidaknya satu menit dari sekarang (WIB)." }, { status: 400 });
+  if (!scheduledAt)
+    return NextResponse.json(
+      { error: "Jadwal harus setidaknya satu menit dari sekarang (WIB)." },
+      { status: 400 },
+    );
 
-  const { id } = await context.params;
-  const result = await prisma.post.updateMany({ where: { id, status: "SCHEDULED" }, data: { scheduledAt } });
-  if (result.count !== 1) return NextResponse.json({ error: "Jadwal tidak ditemukan atau sedang diproses." }, { status: 409 });
-  const post = await prisma.post.findUnique({ where: { id }, select: { id: true, status: true, scheduledAt: true, text: true, topic: true, updatedAt: true } });
-  return NextResponse.json({ post });
+  try {
+    const { id } = await context.params;
+    const result = await prisma.post.updateMany({
+      where: { id, status: "SCHEDULED" },
+      data: { scheduledAt },
+    });
+    if (result.count !== 1)
+      return NextResponse.json(
+        { error: "Jadwal tidak ditemukan atau sedang diproses." },
+        { status: 409 },
+      );
+    const post = await prisma.post.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        scheduledAt: true,
+        text: true,
+        topic: true,
+        updatedAt: true,
+      },
+    });
+    return NextResponse.json({ post });
+  } catch (error) {
+    console.error("Scheduled post update failed.", error);
+    return NextResponse.json(
+      { error: "Jadwal belum bisa diubah. Periksa koneksi database lalu coba lagi." },
+      { status: 503 },
+    );
+  }
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
-  if (!(await isAuthenticated())) return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
+  if (!(await isAuthenticated()))
+    return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
   const { id } = await context.params;
-  const result = await prisma.post.updateMany({ where: { id, status: "SCHEDULED" }, data: { status: "CANCELED" } });
-  if (result.count !== 1) return NextResponse.json({ error: "Jadwal tidak ditemukan atau sudah diproses." }, { status: 409 });
+  const result = await prisma.post.updateMany({
+    where: { id, status: "SCHEDULED" },
+    data: { status: "CANCELED" },
+  });
+  if (result.count !== 1)
+    return NextResponse.json(
+      { error: "Jadwal tidak ditemukan atau sudah diproses." },
+      { status: 409 },
+    );
   return NextResponse.json({ ok: true, status: "CANCELED" });
 }
