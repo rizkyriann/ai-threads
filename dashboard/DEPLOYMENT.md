@@ -85,76 +85,43 @@ npm run db:deploy
 npm run build
 ```
 
-Project menggunakan Next.js standalone output. Salin asset static ke hasil build:
-
-```bash
-mkdir -p .next/standalone/.next
-cp -a .next/static .next/standalone/.next/static
-```
-
-Jika project memiliki directory `public`, salin juga:
-
-```bash
-cp -a public .next/standalone/public
-```
-
 ## 5. Uji Manual
 
-Jalankan build standalone pada port lokal:
+Jalankan aplikasi pada port lokal:
 
 ```bash
-cd .next/standalone
-HOSTNAME=127.0.0.1 PORT=3000 node server.js
+npx next start
 ```
 
-Uji login dan halaman dashboard melalui `http://127.0.0.1:3000` dari server. Jangan menggunakan `next start` untuk build standalone ini.
+Uji login dan halaman dashboard melalui `http://127.0.0.1:3000` dari server, lalu hentikan dengan Ctrl+C.
 
-## 6. Jalankan dengan systemd
+## 6. Jalankan dengan PM2
 
-Buat file service:
+Install PM2 secara global dan jalankan aplikasi dengan konfigurasi yang sudah disediakan:
 
 ```bash
-sudo nano /etc/systemd/system/threads-studio.service
+npm install -g pm2
+pm2 start ecosystem.config.cjs
+pm2 save
 ```
 
-Isi dengan:
-
-```ini
-[Unit]
-Description=Threads Studio dashboard
-After=network.target mysql.service
-
-[Service]
-Type=simple
-User=threads-app
-Group=threads-app
-WorkingDirectory=/path/ke/repository/dashboard/.next/standalone
-EnvironmentFile=/path/ke/repository/dashboard/.env
-Environment=NODE_ENV=production
-Environment=HOSTNAME=127.0.0.1
-Environment=PORT=3000
-ExecStart=/usr/bin/node server.js
-Restart=always
-RestartSec=5
-NoNewPrivileges=true
-PrivateTmp=true
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Ganti semua path contoh dengan path project sebenarnya. Aktifkan service:
+Setup auto-start saat server reboot (ikuti instruksi yang dicetak ke terminal):
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now threads-studio
-sudo systemctl status threads-studio
+pm2 startup systemd
+pm2 save
 ```
 
-Lihat log aplikasi:
+Perintah `pm2 startup` otomatis membuat unit systemd untuk menyalakan PM2 saat boot, sehingga tidak perlu membuat unit file manual.
+
+Perintah berguna sehari-hari:
 
 ```bash
-sudo journalctl -u threads-studio -f
+pm2 status
+pm2 logs threads-studio
+pm2 restart threads-studio
+pm2 stop threads-studio
+pm2 monit
 ```
 
 Gunakan reverse proxy HTTPS jika aplikasi perlu diakses dari perangkat lain. Untuk local lab, batasi akses ke LAN atau Tailscale dan jangan membuka port Node langsung ke internet.
@@ -202,12 +169,10 @@ npm ci
 npm run db:generate
 npm run db:deploy
 npm run build
-mkdir -p .next/standalone/.next
-cp -a .next/static .next/standalone/.next/static
-sudo systemctl restart threads-studio
+pm2 restart threads-studio
 ```
 
-Jika directory `public` digunakan, salin kembali ke `.next/standalone/public` setelah build.
+Perintah `pm2 restart` dijalankan dari directory `dashboard`. Jika `.env` berubah isi, gunakan `pm2 restart threads-studio --update-env`.
 
 ## 9. Smoke Test Setelah Deploy
 
@@ -226,7 +191,7 @@ Jika directory `public` digunakan, salin kembali ke `.next/standalone/public` se
 ### Aplikasi tidak bisa start
 
 ```bash
-sudo journalctl -u threads-studio -n 100 --no-pager
+pm2 logs threads-studio --lines 100
 ```
 
 Periksa `DATABASE_URL`, `SESSION_SECRET`, dan permission `.env`.
@@ -250,5 +215,5 @@ bash /path/ke/repository/dashboard/scripts/run-scheduler.sh
 Kemudian periksa cron, `SCHEDULER_SECRET`, status service, dan log:
 
 ```bash
-journalctl -u threads-studio -f
+pm2 logs threads-studio
 ```

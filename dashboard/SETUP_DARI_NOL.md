@@ -108,12 +108,12 @@ Buat build production:
 npm run build
 ```
 
-Konfigurasi Next.js menggunakan output standalone. Untuk menjalankan hasil build pada Windows, jalankan server standalone dengan environment yang dibaca dari `.env` oleh Next.js:
+Server production dapat dijalankan dengan `next start`, yang otomatis membaca environment dari `.env`:
 
 ```powershell
 $env:HOSTNAME = "127.0.0.1"
 $env:PORT = "3000"
-node .next/standalone/server.js
+npx next start
 ```
 
 Biarkan jendela PowerShell ini tetap berjalan. Verifikasi dari komputer yang sama di <http://127.0.0.1:3000>. Tunnel hanya dapat meneruskan trafik jika server aplikasi hidup dan bisa diakses di alamat lokal tersebut.
