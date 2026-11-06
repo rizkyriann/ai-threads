@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
-import { createTextContainer, publishContainer, ThreadsApiError } from "@/lib/threads-api";
+import { publishText, ThreadsApiError } from "@/lib/threads-api";
 import { prisma } from "@/lib/prisma";
 import { decryptThreadsToken } from "@/lib/threads-token";
 
@@ -43,19 +43,13 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     return NextResponse.json(
       { error: "Post sedang diproses oleh permintaan lain." },
       { status: 409 },
-    );
+  );
 
   try {
-    const containerId =
-      post.threadsContainerId ||
-      (await createTextContainer({ userId: account.threadsUserId, accessToken, text: post.text }));
-    if (!post.threadsContainerId) {
-      await prisma.post.update({ where: { id }, data: { threadsContainerId: containerId } });
-    }
-    const mediaId = await publishContainer({
+    const mediaId = await publishText({
       userId: account.threadsUserId,
       accessToken,
-      creationId: containerId,
+      text: post.text,
     });
     await prisma.post.update({
       where: { id },
@@ -77,7 +71,18 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       where: { id },
       data: { status: "FAILED", errorMessage: "Threads API publish failed." },
     });
-    console.error("Manual Threads publish failed.");
+    console.error(
+      "Manual Threads publish failed.",
+      error instanceof ThreadsApiError
+        ? {
+            statusCode: error.statusCode,
+            apiCode: error.code,
+            errorSubcode: error.errorSubcode,
+            fbtraceId: error.fbtraceId,
+            apiMessage: error.apiMessage,
+          }
+        : { errorType: error instanceof Error ? error.name : "unknown" },
+    );
     const status = error instanceof ThreadsApiError && error.statusCode === 429 ? 429 : 502;
     return NextResponse.json(
       {

@@ -1,13 +1,19 @@
 const DEFAULT_API_BASE = "https://graph.threads.net/v1.0/";
 
 export class ThreadsApiError extends Error {
+  readonly apiMessage?: string;
+
   constructor(
     message: string,
     readonly statusCode: number,
     readonly code?: number,
+    readonly errorSubcode?: number,
+    readonly fbtraceId?: string,
+    apiMessage?: string,
   ) {
     super(message);
     this.name = "ThreadsApiError";
+    this.apiMessage = apiMessage?.replace(/[\r\n\t]+/g, " ").slice(0, 300);
   }
 }
 
@@ -46,15 +52,22 @@ async function requestThreads(
   }
 
   if (!response.ok) {
-    const error = body && typeof body === "object" && "error" in body ? body.error : undefined;
-    const apiCode =
-      error && typeof error === "object" && "code" in error && typeof error.code === "number"
-        ? error.code
+    const apiError =
+      body && typeof body === "object" && "error" in body && body.error
+        ? (body.error as Record<string, unknown>)
         : undefined;
+    const apiCode = typeof apiError?.code === "number" ? apiError.code : undefined;
+    const errorSubcode =
+      typeof apiError?.error_subcode === "number" ? apiError.error_subcode : undefined;
+    const fbtraceId = typeof apiError?.fbtrace_id === "string" ? apiError.fbtrace_id : undefined;
+    const apiMessage = typeof apiError?.message === "string" ? apiError.message : undefined;
     throw new ThreadsApiError(
       "Threads API menolak permintaan. Periksa token dan izin akun.",
       response.status,
       apiCode,
+      errorSubcode,
+      fbtraceId,
+      apiMessage,
     );
   }
   return body as Record<string, unknown>;
@@ -87,7 +100,7 @@ export async function refreshThreadsToken(accessToken: string) {
   };
 }
 
-export async function createTextContainer(input: {
+export async function publishText(input: {
   userId: string;
   accessToken: string;
   text: string;
@@ -97,24 +110,7 @@ export async function createTextContainer(input: {
     {
       media_type: "TEXT",
       text: input.text,
-      access_token: input.accessToken,
-    },
-    "POST",
-  );
-  if (typeof body.id !== "string")
-    throw new ThreadsApiError("Threads tidak mengembalikan ID media container.", 502);
-  return body.id;
-}
-
-export async function publishContainer(input: {
-  userId: string;
-  accessToken: string;
-  creationId: string;
-}) {
-  const body = await requestThreads(
-    `${encodeURIComponent(input.userId)}/threads_publish`,
-    {
-      creation_id: input.creationId,
+      auto_publish_text: "true",
       access_token: input.accessToken,
     },
     "POST",

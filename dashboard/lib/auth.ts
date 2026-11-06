@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import type { NextRequest } from "next/server";
 
 export const SESSION_COOKIE = "threads_studio_session";
 const SESSION_DURATION_SECONDS = 60 * 60 * 12;
@@ -57,10 +58,18 @@ export function verifyOwnerPassword(candidate: string) {
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
-export const sessionCookieOptions = {
-  httpOnly: true,
-  sameSite: "strict" as const,
-  secure: process.env.NODE_ENV === "production",
-  path: "/",
-  maxAge: SESSION_DURATION_SECONDS,
-};
+export function sessionCookieOptions(request: NextRequest) {
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  const isHttps =
+    forwardedProto?.split(",")[0]?.trim() === "https:" ||
+    forwardedProto?.split(",")[0]?.trim() === "https" ||
+    request.nextUrl.protocol === "https:";
+
+  return {
+    httpOnly: true,
+    sameSite: "strict" as const,
+    secure: isHttps,
+    path: "/",
+    maxAge: SESSION_DURATION_SECONDS,
+  };
+}

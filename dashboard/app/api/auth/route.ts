@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     const response = NextResponse.json({ ok: true });
-    response.cookies.set(SESSION_COOKIE, await createSessionToken(), sessionCookieOptions);
+    response.cookies.set(SESSION_COOKIE, await createSessionToken(), sessionCookieOptions(request));
     return response;
   } catch (error) {
     console.error("Login configuration error.");
@@ -39,13 +39,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
   const authenticated = await isAuthenticated();
   if (!authenticated) return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
 
   const response = NextResponse.json({ ok: true });
   response.cookies.set(SESSION_COOKIE, "", {
-    ...sessionCookieOptions,
+    ...sessionCookieOptions(request),
     maxAge: 0,
   });
   return response;

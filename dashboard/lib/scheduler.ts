@@ -1,8 +1,7 @@
 import { decryptThreadsToken } from "@/lib/threads-token";
 import {
-  createTextContainer,
   findRecentlyPublishedPost,
-  publishContainer,
+  publishText,
   ThreadsApiError,
 } from "@/lib/threads-api";
 import { runMetricsIfDue } from "@/lib/metrics";
@@ -18,7 +17,6 @@ type ScheduledItem = {
   text: string;
   scheduledAt: Date | null;
   retryCount: number;
-  threadsContainerId: string | null;
   status: "SCHEDULED" | "FAILED";
 };
 
@@ -99,7 +97,6 @@ async function getDueItems(now: Date): Promise<ScheduledItem[]> {
       text: true,
       scheduledAt: true,
       retryCount: true,
-      threadsContainerId: true,
       status: true,
     },
   });
@@ -118,7 +115,6 @@ async function getDueItems(now: Date): Promise<ScheduledItem[]> {
       text: true,
       scheduledAt: true,
       retryCount: true,
-      threadsContainerId: true,
       status: true,
     },
   });
@@ -156,25 +152,16 @@ async function processOne(
   let publishAttempted = false;
   try {
     if (!item.scheduledAt) throw new Error("Scheduled post has no scheduledAt value.");
-    const containerId =
-      item.threadsContainerId ||
-      (await createTextContainer({ userId: account.threadsUserId, accessToken, text: item.text }));
-    if (!item.threadsContainerId) {
-      await prisma.post.update({
-        where: { id: item.id },
-        data: { threadsContainerId: containerId },
-      });
-    }
     publishAttempted = true;
-    const mediaId = await publishContainer({
+    const mediaId = await publishText({
       userId: account.threadsUserId,
       accessToken,
-      creationId: containerId,
+      text: item.text,
     });
     await markPublished(item.id, mediaId);
     return "published" as const;
   } catch (error) {
-    // Container creation alone does not publish content, so a failed create can be retried safely.
+    // Failures before the publish request is sent are safe to retry.
     if (!publishAttempted && item.retryCount < MAX_RETRIES) {
       const retryCount = item.retryCount + 1;
       const delayMs = 60_000 * 2 ** (retryCount - 1);

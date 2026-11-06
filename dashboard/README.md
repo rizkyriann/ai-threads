@@ -18,6 +18,7 @@ Generasi memakai Gemini Developer API. API key disimpan server-side di `.env` da
 - [`COMPONENTS_AND_STATES.md`](./COMPONENTS_AND_STATES.md) — komponen UI, status, empty/loading/error states.
 - [`ACCEPTANCE_CRITERIA.md`](./ACCEPTANCE_CRITERIA.md) — checklist penerimaan dashboard.
 - [`TASK.md`](./TASK.md) — daftar pekerjaan implementasi dashboard.
+- [`DEPLOYMENT.md`](./DEPLOYMENT.md) — panduan deployment ke server Linux dan cron scheduler.
 
 ## Prioritas implementasi
 
